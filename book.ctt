@@ -1,0 +1,1195 @@
+module book where
+
+data Unit = tt
+
+Path (A : U) (a0 a1 : A) : U = PathP (<i> A) a0 a1
+
+Pi (A : U) (B : A -> U) : U = (x : A) -> B x
+PiIntro (A : U) (B : A -> U) (f : (x : A) -> B x) : Pi A B =
+  \(a : A) -> f a
+PiElim (A : U) (B : A -> U) (f : (x : A) -> B x) (x : A) : B x =
+  f x
+PiCompute (A : U) (B : A -> U) (f : (x : A) -> B x) (x : A) :
+  Path (B x) (PiElim A B (PiIntro A B f) x) (f x) =
+  <i> f x
+PiEta (A B : U) (f : A -> B) : Path (A -> B) f (\(x : A) -> f x)
+ = <i> f
+
+
+Sigma (A : U) (B : A -> U) : U = (a : A) * B a
+SigmaIntro (A : U) (B : A -> U) (x : A) (y : B x) : Sigma A B = (x, y)
+SigmaElim (A : U) (B : A -> U) (C : U) (g : (x : A) -> B x -> C) (s : Sigma A B) : C =
+  g s.1 s.2
+SigmaInduction (A : U) (B : A -> U) (C : (s : Sigma A B) -> U)
+  (g : (x : A) -> (y : B x) -> C (SigmaIntro A B x y)) (s : Sigma A B) : C s =
+  g s.1 s.2
+
+pr_1 (A : U) (B : A -> U) (s : Sigma A B) : A = SigmaElim A B A (\(a : A) (_ : B a) -> a) s
+pr_2 (A : U) (B : A -> U) (s : Sigma A B) : B (pr_1 A B s) =
+  SigmaInduction A B
+   (\(x : Sigma A B) -> B (pr_1 A B x))
+   (\(a : A) -> \(b : B a) -> b)
+   s
+SigmaEta (A : U) (B : A -> U) (x : Sigma A B) : Path (Sigma A B) x (x.1, x.2)
+ = <i> x
+
+Product (A B : U) : U = Sigma A (\(_ : A) -> B)
+
+book_tmp_7896986_ac
+ (A B : U) (R : A -> B -> U) :
+ ((x : A) -> (y : B) * R x y) -> ((f : A -> B) * ((x : A) -> R x (f x))) =
+ \(g : (x : A) -> (y : B) * R x y) ->
+  let f : A -> B = (\(x : A) -> (g x).1) in
+  (f, \(x : A) -> (g x).2)
+
+data Coproduct (A B : U) =
+  inl (a : A)
+  | inr (b : B)
+
+data Empty =
+
+Or : U -> U -> U = Coproduct
+
+CoproductInduction (A B : U) (C : Coproduct A B -> U)
+  (g0 : (a : A) ->  C (inl a))
+  (g1 : (b : B) ->  C (inr b))
+  : (x : Coproduct A B) -> C x
+  = split
+   inl a -> g0 a
+   inr b -> g1 b
+
+botElim (C : U) : Empty -> C = split {}
+EmptyInduction (C : Empty -> U) : (x : Empty) -> C x = split {}
+
+data bool =
+  false
+  | true
+
+BoolInduction (C : bool -> U) (g0 : C false) (g1 : C true) : (x : bool) -> C x = split
+ false -> g0
+ true -> g1
+
+BoolRec (C : U) (g0 : C) (g1 : C) : bool -> C =
+ BoolInduction (\(_ : bool) -> C) g0 g1
+
+theorem_1_8_1 : (x : bool) -> Or (Path bool x false) (Path bool x true) = split
+ false -> inl (<_> false)
+ true -> inr (<_> true)
+
+Or2F (A B : U) : bool -> U = split
+   false -> A
+   true -> B
+Or2 (A B : U) : U =
+   Sigma bool (Or2F A B)
+
+inl2 (A B : U) (a : A) : Or2 A B = (false, a)
+inr2 (A B : U) (b : B) : Or2 A B = (true, b)
+
+Or2Induction (A B : U) (C : Or2 A B -> U)
+  (g0 : (a : A) ->  C (inl2 A B a))
+  (g1 : (b : B) ->  C (inr2 A B b))
+  : (x : Or2 A B) -> C x =
+  let
+   g : (x : bool) -> (y : Or2F A B x) -> C (x, y) = split
+    false -> g0
+    true -> g1
+  in
+  SigmaInduction bool (Or2F A B) C g
+
+data Nat =
+ zero
+ | suc (n : Nat)
+
+NatInduction
+  (C : Nat -> U) (z : C zero) (s : (n : Nat) -> C n -> C (suc n)) : (n : Nat) -> C n = split
+ zero -> z
+ suc n -> s n (NatInduction C z s n)
+
+NatIter
+  (C : U) (z : C) (s : C -> C) : Nat -> C = split
+    zero -> z
+    suc n -> s (NatIter C z s n)
+
+double : Nat -> Nat = NatIter Nat zero (\(n : Nat) -> suc (suc n))
+
+plus : Nat -> Nat -> Nat =
+  let addZero (x : Nat) : Nat = x in
+  let
+   addOneMore (f : Nat -> Nat) : Nat -> Nat =
+    \(x : Nat) -> suc (f x)
+  in
+  NatIter (Nat -> Nat) addZero addOneMore
+
+assoc (i j k : Nat) : Path Nat (plus i (plus j k)) (plus (plus i j) k) =
+ let Assoc (n : Nat) : U = Path Nat (plus n (plus j k)) (plus (plus n j) k) in
+ let assoc0 : Assoc zero = <_> plus j k in
+ let
+  assocs :
+   (n : Nat) ->
+   Assoc n -> Assoc (suc n) =
+   \(n : Nat) (h : Assoc n) -> <i> suc (h @ i)
+ in
+ NatInduction Assoc assoc0 assocs i
+
+neg (A : U) : U = A -> Empty
+
+Tuple (A B :U) : U = (a : A) * B
+
+theorem_1_11_2 (A B : U) (t : Tuple (A -> Empty) (B -> Empty)) : (Or A B -> Empty) = split
+  inl a -> t.1 a
+  inr b -> t.2 b
+
+theorem_1_11_2_reverse (A B : U) (orEmpty : Or A B -> Empty) : Tuple (A -> Empty) (B -> Empty) =
+  ((\(a : A) -> orEmpty (inl a)), 
+  (\(b : B) -> orEmpty (inr b)))
+
+NatLessOrEqual (n m : Nat) : U = (k : Nat) * (Path Nat (plus n k) m)
+
+Pluszero_equal : (n : Nat) -> Path Nat (plus n zero) n = split
+  zero -> <_> zero
+  suc n -> <i> suc (Pluszero_equal n @ i)
+
+NatLessOrEqual_refl (n : Nat) : NatLessOrEqual n n =
+  (zero, Pluszero_equal n)
+
+NatLessOrEqual_trans
+  (a b c : Nat)
+  (p : NatLessOrEqual a b)
+  (q : NatLessOrEqual b c) : NatLessOrEqual a c =
+  (plus p.1 q.1,
+    <i> comp (<_> Nat) (plus (p.2 @ i) q.1) [
+      (i=0) -> <j> assoc a p.1 q.1 @ -j
+    , (i=1) -> q.2
+    ])
+
+
+refl (A : U) (a : A) : Path A a a = <_> a
+
+IndiscernibilityOfIdenticals (A : U) (C : A -> U) (x y : A) (p : Path A x y) : C x -> C y =
+  \(z : C x) -> comp (<i> C (p @ i)) z []
+
+IndiscernibilityOfIdenticalsComputation
+ (A : U) (C : A -> U) (x : A) (c : C x) :
+   Path (C x) (IndiscernibilityOfIdenticals A C x x (<_> x) c) c =
+   <i> comp (<_> C x) c [
+    (i=1)-> <_> c
+   ]
+
+PathInduction
+  (A : U)
+  (C : (x y : A) (eq : Path A x y) -> U)
+  (c : (x : A) -> C x x (<_> x))
+  : ((x y : A) (p : Path A x y) -> C x y p)
+ = \(x y : A) (p : Path A x y) ->
+   comp (<j> C x (p @ j) (<k> p @ j /\ k)) (c x) []
+
+PathInductionComputation
+  (A : U)
+  (C : (x y : A) (eq : Path A x y) -> U)
+  (c : (x : A) -> C x x (<_> x))
+  (x : A) :
+  Path (C x x (<_> x)) (PathInduction A C c x x (<_> x)) (c x)
+ = <i> comp (<_> C x x (<_> x)) (c x)
+   [(i=1) -> <_> c x]
+
+BasedPathInduction
+  (A : U)
+  (x : A)
+  (C : (y : A) (eq : Path A x y) -> U)
+  (c : C x (<_> x))
+  : ((y : A) (p : Path A x y) -> C y p)
+ = \(y : A) (p : Path A x y) ->
+   comp (<j> C (p @ j) (<k> p @ j /\ k)) c []
+
+PathInductionImpliesBasedPathInduction
+
+  (Path : (A : U) -> (x y : A) -> U)
+  (refl : (A : U) (x : A) -> Path A x x)
+  (PathInduction :
+   (A : U)
+   (C : (x y : A) (eq : Path A x y) -> U)
+   (c : (x : A) -> C x x (refl A x))
+   -> ((x y : A) (p : Path A x y) -> C x y p))
+
+  (A : U)
+  (x : A)
+  (C : (y : A) (eq : Path A x y) -> U)
+  (c : C x (refl A x))
+  : ((y : A) (p : Path A x y) -> C y p)
+  = \(y : A) (p : Path A x y) -> PathInduction A
+    (\(x y : A) (p : Path A x y) -> (C' : (y' : A) (p' : Path A x y') -> U) ->
+      C' x (refl A x) -> C' y p)
+    (\(x : A) (C' : (y' : A) (p' : Path A x y') -> U) (c : C' x (refl A x)) -> c)
+    x y p C c
+
+PathInductionImpliesIndiscernibilityOfIdentical
+
+  (Path : (A : U) -> (x y : A) -> U)
+  (refl : (A : U) (x : A) -> Path A x x)
+  (PathInduction :
+   (A : U)
+   (C : (x y : A) (eq : Path A x y) -> U)
+   (c : (x : A) -> C x x (refl A x))
+   -> ((x y : A) (p : Path A x y) -> C x y p))
+
+   (A : U) (C : A -> U) (x y : A) (p : Path A x y) : C x -> C y =
+  (PathInduction
+    A
+    (\(x y : A) (p : Path A x y) -> C x -> C y)
+    (\(x : A) (c : C x) -> c)
+    x y p)
+
+
+exercise_1_1 : Unit = tt where
+  compose (A B C : U) (f : A -> B) (g : B -> C) : A -> C = \(x : A) -> g (f x)
+  proof (A B C D : U) (f : A -> B) (g : B -> C) (h : C -> D)
+    : Path (A -> D) (compose A C D (compose A B C f g) h) (compose A B D f (compose B C D g h)) =
+     <_> (compose A C D (compose A B C f g) h)
+
+exercise_1_2 : Unit = tt -- SigmaElim pretty much does that
+
+exercise_1_3_part1
+  (Product : U -> U -> U)
+  (pr1 : (A B : U) -> Product A B -> A)
+  (pr2 : (A B : U) -> Product A B -> B)
+  (mk : (A B : U) -> A -> B -> Product A B)
+  (uppt : (A B : U) (x : Product A B) -> Path (Product A B) (mk A B (pr1 A B x) (pr2 A B x)) x)
+  (A : U) (B : U) (C : (s : Product A B) -> U)
+  (g : (x : A) -> (y : B) -> C (mk A B x y))
+  (s : Product A B) : C s =
+    comp (<i> C (uppt A B s @ i)) (g (pr1 A B s) (pr2 A B s)) []
+exercise_1_3_part2
+  (Sigma : (A : U) -> (A -> U) -> U)
+  (pr1 : (A : U) (B : A -> U) -> Sigma A B -> A)
+  (pr2 : (A : U) (B : A -> U) -> (s : Sigma A B) -> B (pr1 A B s))
+  (mk : (A : U) (B : A -> U) -> (a : A) -> B a -> Sigma A B)
+  (uppt : (A : U) (B : A -> U) (x : Sigma A B) -> Path (Sigma A B) (mk A B (pr1 A B x) (pr2 A B x)) x)
+  (A : U) (B : A -> U) (C : (s : Sigma A B) -> U)
+  (g : (x : A) -> (y : B x) -> C (mk A B x y))
+  (s : Sigma A B) : C s =
+    comp (<i> C (uppt A B s @ i)) (g (pr1 A B s) (pr2 A B s)) []
+
+-- also known as NatRec
+NatRec
+  (C : U) (z : C) (s : Nat -> C -> C) : Nat -> C =
+    \(x : Nat) ->
+       (NatIter ((n : Nat) * C) (zero, z) (\(x : ((n : Nat) * C)) -> (suc x.1, s (suc x.1) x.2)) x).2
+exercise_1_4 : Unit = tt -- NatRec
+
+
+
+exercise_1_5   (A B : U) (C : Or2 A B -> U)
+  (g0 : (a : A) ->  C (inl2 A B a))
+  (g1 : (b : B) ->  C (inr2 A B b)) : Unit =
+  let
+   g0Good (a : A) : Path (C (inl2 A B a)) (g0 a) (Or2Induction A B C g0 g1 (inl2 A B a)) =
+    <_> g0 a
+  in
+  tt
+
+Funext (A : U) (B : A -> U) (f g : Pi A B)
+  (pointwise : (a : A) -> Path (B a) (f a) (g a)) : Path (Pi A B) f g
+  = <i> \(a : A) -> pointwise a @ i
+
+Funext_refl (A : U) (B : A -> U) (f : Pi A B) :
+  Path (Path (Pi A B) f f) (Funext A B f f (\(x : A) -> <_> f x)) (<_> f) =
+    <i j> \(x : A) -> f x
+
+data Normalized (A : U) (a : A) =
+  Blah
+
+exercise_1_6 (A B : U) : Unit = tt where
+  Prod2F : bool -> U = BoolRec U A B
+  Prod2 : U =
+     Pi bool Prod2F
+
+  mk (x : A) (y : B) : Prod2 = BoolInduction Prod2F x y
+
+
+  UP_pointwise (s : Prod2) : (x : bool) -> Path (Prod2F x) (mk (s false) (s true) x) (s x) = split
+    false -> <_> s false
+    true -> <_> s true
+
+  UP_pointwise_refl (a : A) (b : B) : (x : bool) -> Path (Path (Prod2F x) (mk a b x) (mk a b x)) (UP_pointwise (mk a b) x) (<_> mk a b x) = split
+    false -> <_ _> a
+    true -> <_ _> b
+
+  UP (s : Prod2) : Path Prod2 (mk (s false) (s true)) s =
+   Funext bool Prod2F (mk (s false) (s true)) s (UP_pointwise s)
+
+  Prod2Induction
+    (C : (s : Prod2) -> U)
+    (g : (x : A) -> (y : B) -> C (mk x y))
+    (s : Prod2) : C s =
+    comp (<i> C (UP s @ i)) (g (s false) (s true)) []
+
+  UpRefl (a : A) (b : B) : Path (Path Prod2 (mk a b) (mk a b)) (UP (mk a b)) (<_> (mk a b))
+   = <i j> \(x : bool) -> UP_pointwise_refl a b x @ i @ j
+
+  Prod2Computation
+    (C : (s : Prod2) -> U)
+    (g : (x : A) -> (y : B) -> C (mk x y))
+    (a : A) (b : B) :
+    Path (C (mk a b)) (Prod2Induction C g (mk a b)) (g a b) =
+      <j> comp (<i> C (UpRefl a b @ j @ i)) (g a b)
+        [(j=1) -> <_> g a b
+        ]
+
+exercise_1_7 : Unit = tt {- TODO -}
+exercise_1_8 : Unit = tt where
+  add (n : Nat) : Nat -> Nat = NatIter Nat n (\(n : Nat) -> suc n)
+  mult (n : Nat) : Nat -> Nat = NatIter Nat zero (\(m : Nat) -> add m n)
+
+  AddAssoc (i j k : Nat) : U = Path Nat (add i (add j k)) (add (add i j) k)
+  MultAssoc (i j k : Nat) : U = Path Nat (mult i (mult j k)) (mult (mult i j) k)
+
+  add_assoc (i j k : Nat) : AddAssoc i j k =
+    let z : AddAssoc i j zero = <_> add i j in
+    let
+     s : (k : Nat) ->
+      AddAssoc i j k -> AddAssoc i j (suc k)
+      = \(k : Nat) (hyp : AddAssoc i j k) ->
+       <i> suc (hyp @ i)
+    in
+    NatInduction (AddAssoc i j) z s k
+
+  add_zero_l : (a : Nat) -> Path Nat (add zero a) a =
+    NatInduction
+      (\(a : Nat) -> Path Nat (add zero a) a)
+      (<_> zero)
+      (\(n : Nat) (p : Path Nat (add zero n) n) ->
+        <i> suc (p @ i))
+
+  commute_suc (x : Nat) : (a : Nat) -> Path Nat (add (suc x) a) (add x (suc a)) =
+    NatInduction
+      (\(a : Nat) -> Path Nat (add (suc x) a) (add x (suc a)))
+      (<_> suc x)
+      (\(n : Nat) (p : Path Nat (add (suc x) n) (add x (suc n))) ->
+        <i> suc (p @ i))
+
+  add_zero_r : (a : Nat) -> Path Nat (add a zero) a = \(a : Nat) ->  <_> a
+
+  add_comm (a b : Nat) : Path Nat (add a b) (add b a) =
+    NatInduction
+      (\(a : Nat) -> Path Nat (add a b) (add b a))
+      (add_zero_l b)
+      (\(n : Nat) (p : Path Nat (add n b) (add b n)) ->
+        <i> comp (<_> Nat) (suc (p @ i))
+	  [(i=0) -> <i> commute_suc n b @ -i
+	  ,(i=1) -> <_> add b (suc n)]
+      ) a
+
+  mult_distrib_l (x b c : Nat) :
+    Path Nat (mult x (add b c)) (add (mult x b) (mult x c)) =
+    NatInduction
+      (\(c : Nat) -> Path Nat (mult x (add b c)) (add (mult x b) (mult x c)))
+      (<_> mult x b)
+      (\(c : Nat) (hyp : Path Nat (mult x (add b c)) (add (mult x b) (mult x c))) ->
+        <i> comp (<_> Nat) (add (hyp @ i) x)
+	  [ (i=0) ->
+	    let
+	     proof : Path Nat (add (mult x (add b c)) x) (mult x (suc (add b c))) =
+	      <_> (add (mult x (add b c)) x)
+	    in
+	    proof
+	  , (i=1) ->
+	     <j> add_assoc (mult x b) (mult x c) x @ -j
+	  ]
+       )
+      c
+
+  comm_through_paren (a b c : Nat) : Path Nat (add (add a b) c) (add (add a c) b) =
+    <i> comp (<_> Nat) (add a (add_comm b c @ i)) [
+     (i=0) -> add_assoc a b c
+    ,(i=1) -> <i> add_assoc a c b @ i
+    ]
+
+  mult_distrib_r (b c : Nat) :
+    (x : Nat) -> Path Nat (mult (add b c) x) (add (mult b x) (mult c x)) =
+    NatInduction
+      (\(x : Nat) -> Path Nat (mult (add b c) x) (add (mult b x) (mult c x)))
+      (<_> zero)
+      (\(x : Nat) ->
+        let bx : Nat = mult b x in
+        let cx : Nat = mult c x in
+        \(hyp : Path Nat (mult (add b c) x) (add bx cx)) ->
+        let
+         result : Path Nat (mult (add b c) (suc x)) (add (add bx b) (add cx c))
+	  =
+          <i> comp (<_> Nat) (add (hyp @ i) (add b c)) [
+           (i=0) -> <_> mult (add b c) (suc x)
+          ,(i=1) -> <i>
+            comp (<_> Nat) (add_assoc (add bx cx) b c @ i) [
+              (i=0) -> <_> add (add bx cx) (add b c)
+            , (i=1) -> <i> comp (<_> Nat) (add (comm_through_paren bx cx b @ i) c) [
+                (i=0) -> <_> add (add (add bx cx) b) c
+              , (i=1) -> <i> comp (<_> Nat) (add_assoc (add bx b) cx c @ -i) [
+                  (i=0) -> <_> add (add (add bx b) cx) c
+                , (i=1) -> <_> add (add bx b) (add cx c)
+                ]
+              ]
+            ]
+          ]
+        in result
+         )
+
+  mult_assoc (i j k : Nat) : MultAssoc i j k =
+    let z : MultAssoc i j zero = <_> zero in
+    let
+     s : (k : Nat) ->
+      MultAssoc i j k -> MultAssoc i j (suc k)
+      = \(k : Nat) (hyp : MultAssoc i j k) ->
+       let a : Nat = i in
+       let b : Nat = j in
+       let c : Nat = k in
+       <q> comp (<_> Nat) (add (hyp @ q) (mult a b))
+        [(q=1) -> <_> mult (mult a b) (suc c)
+        ,(q=0) -> <z> mult_distrib_l a (mult b c) b @ -z
+       ]
+    in
+    NatInduction (MultAssoc i j) z s k
+
+  zero_r (x : Nat) : Path Nat (mult x zero) zero = <_> zero
+  zero_l (x : Nat) : Path Nat (mult zero x) zero =
+    NatInduction
+     (\(x : Nat) -> Path Nat (mult zero x) zero)
+     (<_> zero)
+     (\(x : Nat) (hyp : Path Nat (mult zero x) zero) -> hyp)
+     x
+
+  mult_identity_r (x : Nat) : Path Nat (mult x (suc zero)) x = add_zero_l x
+  mult_identity_l (x : Nat) : Path Nat (mult (suc zero) x) x =
+    NatInduction
+     (\(x : Nat) -> Path Nat (mult (suc zero) x) x)
+     (<_> zero)
+     (\(x : Nat) (hyp : Path Nat (mult (suc zero) x) x)
+       -> <i> suc (hyp @ i))
+     x
+
+
+exercise_1_9 : Unit = tt where
+  Fin : (n : Nat) -> U = NatIter U Empty (Coproduct Unit)
+   
+  zero' : (n : Nat) -> Fin (suc n) = \(n : Nat) -> inl tt
+
+  max : (n : Nat) -> Fin (suc n) = split
+    zero -> inl tt
+    suc n -> inr (max n)
+  
+exercise_1_10 : Unit = tt where
+  ack : Nat -> Nat -> Nat = split
+    zero -> \(n : Nat) -> suc n
+    suc m ->
+      let
+       r : Nat -> Nat = split
+         zero -> suc zero
+         suc n -> ack m (r n)
+      in
+      r
+
+  ack : Nat -> Nat -> Nat =
+    NatIter (Nat -> Nat) (\(x : Nat) -> suc x) (\(ackm : (Nat -> Nat)) -> NatIter Nat (suc zero) (\(rn : Nat) -> ackm rn))
+
+  eq1 (n : Nat) : Path Nat (ack zero n) (suc n) = <_> ack zero n
+  eq2 (m : Nat) : Path Nat (ack (suc m) zero) (suc zero) = <_> suc zero
+  eq3 (m n : Nat) : Path Nat (ack (suc m) (suc n)) (ack m (ack (suc m) n)) = <_> (ack (suc m) (suc n))
+
+
+exercise_1_11 (A : U) :  neg (neg (neg A)) -> neg A =
+  \(nnn : neg (neg (neg A))) (a : A) -> nnn (\(n : neg A) -> n a)
+
+exercise_1_12 : Unit = tt where
+  p1 (A B : U) : A -> (B -> A) = \(a : A) -> \(b : B) -> a
+  p2 (A : U) : A -> neg (neg A) = \(a : A) (n : neg A) -> n a
+  p3 (A B : U) : (Or (neg A) (neg B)) -> neg (Product A B) = split
+    inl na -> \(ab : Product A B) -> na ab.1
+    inr nb -> \(ab : Product A B) -> nb ab.2
+exercise_1_13 (P : U) : neg (neg (Or P (neg P))) =
+  \(nope : (neg (Or P (neg P)))) ->
+    nope (inr (\(p : P) -> nope (inl p)))
+exercise_1_14 : Unit = tt -- not sure what to do here
+exercise_1_15 : Unit = tt -- done with PathInductionImpliesIndiscernibilityOfIdentical
+
+
+
+-- Chapter 2
+
+lemma_2_1_1 (A : U) : (x y : A) -> Path A x y -> Path A y x
+ = PathInduction A
+   (\(x y : A) (p : Path A x y) -> Path A y x)
+   (\(x : A) -> <_> x)
+-- sadly inverse refl is not definitionally refl when inverse is defined by path induction
+lemma_2_1_1_eval (A : U) (x : A) : Path (Path A x x) (lemma_2_1_1 A x x (<_> x)) (<_> x)
+ = PathInductionComputation A
+   (\(x y : A) (p : Path A x y) -> Path A y x)
+   (\(x : A) -> <_> x)
+   x
+lemma_2_1_1_better (A : U) : (x y : A) -> Path A x y -> Path A y x
+ = \(x y : A) (p : Path A x y) -> <i> p @ -i
+lemma_2_1_1_better_is_equivalent (A : U) : (x y : A) (p : Path A x y) ->
+  Path (Path A y x) (lemma_2_1_1_better A x y p) (lemma_2_1_1 A x y p) =
+  PathInduction
+    A
+    (\(x y : A) (p : Path A x y) ->
+       Path (Path A y x) (lemma_2_1_1_better A x y p) (lemma_2_1_1 A x y p))
+    (\(x : A) -> <i> lemma_2_1_1_eval A x @ -i)
+
+
+path_inverse (A : U) : (x y : A) -> Path A x y -> Path A y x
+ = lemma_2_1_1_better A
+
+path_compose (A : U) (x y z : A) : Path A x y -> Path A y z -> Path A x z =
+  \(p : Path A x y) (q : Path A y z) ->
+    IndiscernibilityOfIdenticals
+      A
+      (\(y : A) -> Path A y z)
+      y x
+      (path_inverse A x y p)
+      q
+
+compose (A : U) (x y z : A) : Path A x y -> Path A y z -> Path A x z =
+  \(p : Path A x y) (q : Path A y z) ->
+    <i> comp (<_> A) y [
+      (i=0) -> <i> p @ -i
+    , (i=1) -> q
+    ]
+
+path_compose_cubical (A : U) (x y z : A) : Path A x y -> Path A y z -> Path A x z = compose A x y z
+
+pathP_compose
+  (A B C : U)
+  (P : Path U A B) (Q : Path U B C)
+  (a : A) (b : B) (c : C)
+  (p : PathP (<i> P @ i) a b)
+  (q : PathP (<i> Q @ i) b c)
+  : PathP (path_compose_cubical U A B C P Q) a c =
+    <i>
+      let
+       typ : Path U B (path_compose_cubical U A B C P Q @ i) =
+        (<j> comp (<_> U) B [
+          (j=0) -> <_> B
+        , (i=0) -> <k> P @ -k \/ -j
+        , (i=1) -> <k> Q @ k /\ j
+        ])
+      in
+      let fop : Unit = tt in
+      comp typ b [
+        (i=0) -> <i> p @ -i
+      , (i=1) -> q
+      ]
+
+path_compose_computation (A : U) (x : A) :
+  Path (Path A x x) (path_compose A x x x (<_> x) (<_> x)) (<_> x) =
+    IndiscernibilityOfIdenticalsComputation A (\(y : A) -> Path A y x) x (<_> x)
+
+compose_computation (A : U) (x : A) :
+  Path (Path A x x) (compose A x x x (<_> x) (<_> x)) (<_> x) =
+    <i j> comp (<_> A) x [
+     (j=0) -> <_> x
+    ,(j=1) -> <_> x
+    ,(i=1) -> <_> x
+    ]
+
+compose_computation_silly (A : U) (x : A)
+  (p : Path A x x) (p_refl : Path (Path A x x) p (<_> x))
+  (q : Path A x x) (q_refl : Path (Path A x x) q (<_> x))
+  :
+  Path (Path A x x) (compose A x x x p q) (<_> x) =
+    comp (<i> Path (Path A x x) (compose A x x x (p_refl @ -i) (q_refl @ -i)) (<_> x))
+      (compose_computation A x) []
+
+compose_identity_r (A : U) : (x y : A) (p : Path A x y) -> Path (Path A x y) (path_compose A x y y p (<_> y)) p =
+    PathInduction
+      A
+      (\(x y : A) (p : Path A x y) -> Path (Path A x y) (path_compose A x y y p (<_> y)) p)
+      (compose_computation A)
+
+compose_identity_r' (A : U) : (x y : A) (p : Path A x y) -> Path (Path A x y) (path_compose A x y y p (<_> y)) p =
+  \(a b : A) -> \(p : Path A a b) ->
+  <i j> comp (<_> A) b
+   [ (i=1) -> <k> p @ j \/ -k
+   , (j=0) -> <k> p @ -k
+   , (j=1) -> <k> b
+   ]
+
+-- TODO: understand how this can be refactored into the form above
+compose_identity_r_wtf (A : U) : (x y : A) (p : Path A x y) -> Path (Path A x y) (path_compose A x y y p (<_> y)) p =
+ \(x y : A) -> \(p : PathP (<!0> A) x y) ->
+   <i j> comp (<k> A)
+     (comp (<k> A) x [ (i = 1) -> <k> x, (j = 0) -> <k> x, (j = 1) -> <k> x ])
+     [ (i = 0) ->
+       <k> comp (<l> A) (p @ k)
+         [ (j = 0) -> <l> p @ (k /\ -l)
+	 , (j = 1) -> <l> p @ k
+	 ]
+     , (i = 1) -> <k> p @ (k /\ j)
+     , (j = 0) -> <k> x
+     , (j = 1) -> <k> p @ k
+     ]
+
+lemma_2_1_4 (A : U) (x y z w : A) (p : Path A x y) (q : Path A y z) (r : Path A z w) : Unit = tt where
+  property_i1 (x y : A) (p : Path A x y) : Path (Path A x y) p (path_compose A x x y (<_> x) p) =
+    <i> IndiscernibilityOfIdenticalsComputation
+     A
+     (\(q : A) -> Path A q y)
+     x
+     p @ -i
+  property_i0 : (x y : A) (p : Path A x y) -> Path (Path A x y) p (path_compose A x y y p (<_> y)) =
+    PathInduction
+      A
+      (\(x y : A) (p : Path A x y) -> Path (Path A x y) p (path_compose A x y y p (<_> y)))
+      (\(x : A) -> <i> path_compose_computation A x @ -i)
+  property_ii0 : (x y : A) (p : Path A x y) ->
+    Path (Path A x x) (path_compose A x y x p (path_inverse A x y p)) (<_> x) =
+    PathInduction A
+      (\(x y : A) (p : Path A x y) ->
+       Path (Path A x x) (path_compose A x y x p (path_inverse A x y p)) (<_> x))
+      (\(x : A) -> path_compose_computation A x)
+  property_ii1 : (x y : A) (p : Path A x y) ->
+    Path (Path A y y) (path_compose A y x y (path_inverse A x y p) p) (<_> y) =
+    PathInduction A
+      (\(x y : A) (p : Path A x y) ->
+       Path (Path A y y) (path_compose A y x y (path_inverse A x y p) p) (<_> y))
+      (\(x : A) -> path_compose_computation A x)
+  property_iii : (x y : A) (p : Path A x y) ->
+     Path (Path A x y) (path_inverse A y x (path_inverse A x y p)) p
+     = \(x y : A) (p : Path A x y) -> <_> p -- a bit of a cheat?
+  property_iv :
+    Path (Path A x w)
+     (path_compose A x y w p (path_compose A y z w q r))
+     (path_compose A x z w (path_compose A x y z p q) r)
+     =
+      PathInduction
+        A
+	(\(x y : A) (p : Path A x y) -> (z : A) (q : Path A y z) (w : A) (r : Path A z w) ->
+    Path (Path A x w)
+     (path_compose A x y w p (path_compose A y z w q r))
+     (path_compose A x z w (path_compose A x y z p q) r)
+	)
+	(PathInduction
+	   A
+	   (\(y z : A) (q : Path A y z) -> (w : A) (r : Path A z w) ->
+    Path (Path A y w)
+     (path_compose A y y w (<_> y) (path_compose A y z w q r))
+     (path_compose A y z w (path_compose A y y z (<_> y) q) r)
+	   )
+	   (PathInduction A
+	     (\(z w : A) (r : Path A z w) ->
+    Path (Path A z w)
+     (path_compose A z z w (<_> z) (path_compose A z z w (<_> z) r))
+     (path_compose A z z w (path_compose A z z z (<_> z) (<_> z)) r)
+	     )
+	     (\(w : A) ->
+	       path_compose (Path A w w)
+	         (path_compose A w w w (<_> w) (path_compose A w w w (<_> w) (<_> w)))
+		 (path_compose A w w w (<_> w) (<_> w))
+		 (path_compose A w w w (path_compose A w w w (<_> w) (<_> w)) (<_> w))
+		 (<i> property_i1 w w (path_compose A w w w (<_> w) (<_> w)) @ -i)
+		 (property_i0 w w (path_compose A w w w (<_> w) (<_> w)))
+	     )
+	   )
+	)
+	x y p z q w r
+
+PSet : U = (A : U) * A
+
+LoopPS (A : PSet) : PSet =
+  (Path A.1 A.2 A.2, <_> A.2)
+
+Loop (A : PSet) : U = (LoopPS A).1
+trivialLoop (A : PSet) : (LoopPS A).1 = (LoopPS A).2
+
+Loop2PS (A : PSet) : PSet = LoopPS (LoopPS A)
+Loop (A : PSet) : U = (LoopPS A).1
+Loop2 (A : PSet) : U = (Loop2PS A).1
+Loop3PS (A : PSet) : PSet = LoopPS (LoopPS (LoopPS A))
+
+loop_compose (A : PSet) : Loop A -> Loop A -> Loop A =
+  \(p q : Loop A) -> compose A.1 A.2 A.2 A.2 p q
+
+Square (A : U) (a0 a1 b0 b1 : A) (pa : Path A a0 a1) (pb : Path A b0 b1) (p0 : Path A a0 b0) (p1 : Path A a1 b1) : U =
+  PathP (<i> Path A (pa @ i) (pb @ i)) p0 p1
+
+composeUD (A : U)
+  (a0 a1 b0 b1 c0 c1 : A)
+  (pa : Path A a0 a1)
+  (pb : Path A b0 b1)
+  (pc : Path A c0 c1)
+  (p0 : Path A a0 b0)
+  (p1 : Path A a1 b1)
+  (q0 : Path A b0 c0)
+  (q1 : Path A b1 c1)
+  (p : Square A a0 a1 b0 b1 pa pb p0 p1)
+  (q : Square A b0 b1 c0 c1 pb pc q0 q1)
+  : Square A a0 a1 c0 c1 pa pc
+      (path_compose_cubical A a0 b0 c0 p0 q0)
+      (path_compose_cubical A a1 b1 c1 p1 q1)      
+ =
+  <i j> comp (<_> A) (pb @ i) [
+    (j=0) -> <j> p @ i @ -j
+  , (j=1) -> <j> q @ i @ j
+  ]
+
+composeLR (A : U)
+  (a0 a1 a2 b0 b1 b2 : A)
+  (pa : Path A a0 a1) (qa : Path A a1 a2)
+  (pb : Path A b0 b1) (qb : Path A b1 b2)
+  (p0 : Path A a0 b0)
+  (p1 : Path A a1 b1)
+  (p2 : Path A a2 b2)
+  (p : Square A a0 a1 b0 b1 pa pb p0 p1)
+  (q : Square A a1 a2 b1 b2 qa qb p1 p2)
+  : Square A a0 a2 b0 b2
+      (path_compose_cubical A a0 a1 a2 pa qa)
+      (path_compose_cubical A b0 b1 b2 pb qb)
+      p0 p2
+ =
+  <i j> comp (<_> A) (p1 @ j) [
+    (i=0) -> <k> p @ -k @ j
+  , (i=1) -> <k> q @ k @ j
+  ]
+
+composeFromRefl (A : U) (a b c : A) (p : Path A a b) (q : Path A b c) :
+  PathP (<i> Path A (p @ -i) (q @ i)) (<_> b) (compose A a b c p q)
+  = <i j> comp (<_> A) b [
+    (i=0) -> <_> b
+  , (j=0) -> <k> p @ -k \/ -i
+  , (j=1) -> <k> q @ k /\ i
+  ]
+
+{-
+      pa       qa
+  a0 ----- a1 ----- a2
+  |        |        |
+  |        |        |
+  |p0  x   |p1  y   |p2
+  |        |        |
+  |   pb   |   qb   |
+  b0 ----- b1 ----- b2
+  |        |        |
+  |        |        |
+  |q0  z   |q1  w   |q2
+  |        |        |
+  |   pc   |   qc   |
+  c0 ----- c1 ----- c2
+-}
+{- LR_UD_Commute (A : U)
+ (a0 a1 a2 b0 b1 b2 c0 c1 c2 : A)
+ (pa : Path A a0 a1) (qa : Path A a1 a2)
+ (pb : Path A b0 b1) (qb : Path A b1 b2)
+ (pc : Path A c0 c1) (qc : Path A c1 c2)
+ (p0 : Path A a0 b0) (q0 : Path A b0 c0)
+ (p1 : Path A a1 b1) (q1 : Path A b1 c1)
+ (p2 : Path A a2 b2) (q2 : Path A b2 c2)
+ (x : Square A a0 a1 b0 b1 pa pb p0 p1)
+ (y : Square A a1 a2 b1 b2 qa qb p1 p2)
+ (z : Square A b0 b1 c0 c1 pb pc q0 q1)
+ (w : Square A b1 b2 c1 c2 qb qc q1 q2)
+ :
+   let
+     side0 : Path A a0 c0 = compose A a0 b0 c0 p0 q0
+     side1 : Path A a1 c1 = compose A a1 b1 c1 p1 q1
+     side2 : Path A a2 c2 = compose A a2 b2 c2 p2 q2
+     sidea : Path A a0 a2 = compose A a0 a1 a2 pa qa
+     sideb : Path A b0 b2 = compose A b0 b1 b2 pb qb
+     sidec : Path A c0 c2 = compose A c0 c1 c2 pc qc
+   in
+   Path
+   (Square A a0 a2 c0 c2
+     sidea
+     sidec
+     side0
+     side2)
+     (composeLR A
+       a0 a1 a2 c0 c1 c2 pa qa pc qc side0 side1 side2
+       (composeUD A
+         a0 a1 b0 b1 c0 c1 pa pb pc p0 p1 q0 q1
+         x z)
+       (composeUD A
+         a1 a2 b1 b2 c1 c2 qa qb qc p1 p2 q1 q2
+         y w))
+     (composeUD A
+       a0 a2 b0 b2 c0 c2 sidea sideb sidec p0 p2 q0 q2
+       (composeLR A
+         a0 a1 a2 b0 b1 b2 pa qa pb qb p0 p1 p2
+         x y)
+       (composeLR A
+         b0 b1 b2 c0 c1 c2 pb qb pc qc q0 q1 q2
+         z w))
+     =
+     <q i j>
+       comp (<_> A) b1 [
+         (i=0) -> <w> comp (<_> A) b0
+	  [(w=0) -> <k> pb @ k
+	  ,(w=1) -> <k> composeFromRefl A a0 b0 c0 p0 q0 @ k @ j
+	  ]
+         ,(i=1) -> <w> comp (<_> A) b2
+	  [(w=0) -> <k> qb @ -k
+	  ,(w=1) -> <k> composeFromRefl A a2 b2 c2 p2 q2 @ k @ j
+	  ]
+	 , (j=0) -> <w> comp (<_> A) a1
+	  [(w=0) -> <k> p1 @ k
+	  ,(w=1) -> <k> composeFromRefl A a0 a1 a2 pa qa @ k @ j
+	  ]
+	 , (j=1) -> <w> comp (<_> A) c1
+	  [(w=0) -> <k> q1 @ -k
+	  ,(w=1) -> <k> composeFromRefl A c0 c1 c2 pc qc @ k @ j
+	  ]
+         (q=0) ->
+	   <k> comp (<_> A) (compose A (p1 @ -k) b1 (q1 @ k) (<l> p1 @ l \/ -k) (<l> q1 @ l /\ k) @ j) []
+       ] -}
+
+loop2_parallel_compose (A : PSet) (p q : Loop2 A) : Loop2 A =
+  <i j> comp (<_> A.1) A.2 [
+    (j=0) -> <k> p @ i @ -k
+  , (j=1) -> <k> q @ i @ k
+  , (i=0) -> <_> A.2
+  , (i=1) -> <_> A.2
+  ]
+
+loop2_parallel_compose_identity_l (A : PSet) (p : Loop2 A) :
+  Path (Loop2 A) (loop2_parallel_compose A p (<_ _> A.2)) p =
+
+  let
+   blah :
+    PathP (<_> Path (Path A.1 A.2 A.2) (<_> A.2) (<_> A.2)) (loop2_parallel_compose A p (<_ _> A.2)) p =
+     <q i j> comp (<_> A.1) A.2 [
+      {- faces: -}
+        (q=0)(i=0)(j=0) -> <k> A.2
+      , (q=0)(i=0)(j=1) -> <k> A.2
+      , (q=0)(i=1)(j=0) -> <k> A.2
+      , (q=0)(i=1)(j=1) -> <k> A.2
+      , (q=1)(i=0)(j=0) -> <k> A.2
+      , (q=1)(i=0)(j=1) -> <k> A.2
+      , (q=1)(i=1)(j=0) -> <k> A.2
+      , (q=1)(i=1)(j=1) -> <k> A.2
+
+      , (q=1) -> <k> p @ i @ -k \/ j
+      , (q=0)(j=0) -> <k> p @ i @ -k
+      , (q=1)(j=0) -> <k> p @ i @ -k
+      , (q=0)(j=1) -> <k> A.2
+      , (q=1)(j=1) -> <k> A.2
+      , (q=1)(i=0) -> <k> A.2
+      , (q=1)(i=1) -> <k> A.2
+
+      , (q=0)(i=0) -> <k> A.2
+      , (q=0)(i=1) -> <k> A.2
+      , (i=0)(j=0) -> <k> A.2
+      , (i=0)(j=1) -> <k> A.2
+      , (i=1)(j=0) -> <k> A.2
+      , (i=1)(j=1) -> <k> A.2
+
+      , (i=0) -> <k> A.2
+      , (i=1) -> <k> A.2
+      , (j=1) -> <k> A.2
+      , (j=0) -> <k> p @ i @ -k
+     ]
+  in
+  blah
+
+loop2_parallel_compose_identity_l (A : PSet) (p : Loop2 A) :
+  Path (Loop2 A) (loop2_parallel_compose A p (<_ _> A.2)) p =
+  <q i j> comp (<k> A.1) A.2 [
+    (q = 1) -> <k> p @ i @ (j \/ -k)
+  , (i = 0) -> <k> A.2
+  , (i = 1) -> <k> A.2
+  , (j = 0) -> <k> p @ i @ -k
+  , (j = 1) -> <k> A.2 ]
+
+loop2_parallel_compose_identity_r (A : PSet) (p : Loop2 A) :
+  Path (Loop2 A) (loop2_parallel_compose A (<_ _> A.2) p) p =
+  <q i j> comp (<k> A.1) A.2 [
+    (q = 1) -> <k> p @ i @ (j /\ k)
+  , (i = 0) -> <k> A.2
+  , (i = 1) -> <k> A.2
+  , (j = 0) -> <k> A.2
+  , (j = 1) -> <k> p @ i @ k
+  ]
+
+
+whisker (A : U) (a b : A) (p q : Path A a b) (alpha : Path (Path A a b) p q) : (c : A) (r : Path A b c) ->
+  Path (Path A a c) (compose A a b c p r) (compose A a b c q r) =
+  BasedPathInduction A b
+   (\(c : A) (r : Path A b c) ->
+  Path (Path A a c) (compose A a b c p r) (compose A a b c q r))
+   (
+     let
+      x : Path (Path A a b) (compose A a b b p (<_> b)) (compose A a b b q (<_> b)) =
+       IndiscernibilityOfIdenticals
+         (Path A a b)
+         (\(p1 : Path A a b) ->
+           Path (Path A a b) p1 (compose A a b b q (<_> b)))
+	 p
+	 (compose A a b b p (<_> b))
+	 (<i> compose_identity_r A a b p @ -i)
+	 (IndiscernibilityOfIdenticals
+	   (Path A a b)
+	   (\(p2 : Path A a b) ->
+           Path (Path A a b) p p2)
+	   q
+	   (compose A a b b q (<_> b))
+	   (<i> compose_identity_r A a b q @ -i)
+	   alpha
+	 )
+     in
+     x)
+
+whisker_simpler (A : U) (a b : A) (p q : Path A a b) (alpha : Path (Path A a b) p q) (c : A) (r : Path A b c) :
+  Path (Path A a c) (compose A a b c p r) (compose A a b c q r) =
+  <i j> comp (<_> A) b [
+   (j=0) -> <k> alpha @ i @ -k
+  ,(j=1) -> <k> r @ k
+  ]
+
+-- whisker_simpler with alpha=refl happens to be definitionally equal to what we want!
+whisker_simpler_computation_useless_definition (A : U) (a b : A) (p : Path A a b) (c : A) (r : Path A b c) :
+  Path
+    (Path (Path A a c) (compose A a b c p r) (compose A a b c p r))
+    (whisker_simpler A a b p p (<_> p) c r)
+    (<_> compose A a b c p r) =
+    <_> <_> compose A a b c p r
+
+whisker_computation_r (A : U) (a b : A) (p q : Path A a b) (alpha : Path (Path A a b) p q) :
+  PathP
+    (<i> Path (Path A a b) (compose_identity_r' A a b p @ i) (compose_identity_r' A a b q @ i))
+    (whisker_simpler A a b p q alpha b (<_> b))
+    (alpha)
+  = <z i j> comp (<_> A) b [
+   (j=0) -> <k> alpha @ i @ -k
+  ,(j=1) -> <k> b
+  ,(z=1) -> <k> alpha @ i @ j \/ -k
+--  ,(i=0) -> <k> p @ -k \/ j
+--  ,(i=1) -> <k> q @ -k \/ j
+  ]
+
+path2_parallel_compose_v1
+  (A : U) (a b c : A)
+  (p q : Path A a b) (r s : Path A b c)
+  (alpha : Path (Path A a b) p q) (beta : Path (Path A b c) r s) :
+    Path (Path A a c) (compose A a b c p r) (compose A a b c q s) =
+  compose
+    (Path A a c)
+    (compose A a b c p r)
+    (compose A a b c q r)
+    (compose A a b c q s)
+    (whisker_simpler A a b p q alpha c r)
+    (<i j> whisker_simpler A c b (<j> r @ -j) (<j> s @ -j) (<i j> beta @ i @ -j) a (<k> q @ -k) @ i @ -j)
+
+path2_parallel_compose_v1_computation
+  (A : U) (a b c : A)
+  (p : Path A a b) (r : Path A b c) :
+  Path (Path (Path A a c) (compose A a b c p r) (compose A a b c p r))
+    (path2_parallel_compose_v1 A a b c p p r r (<_> p) (<_> r))
+    (<_> compose A a b c p r) =
+    compose_computation
+      (Path A a c)
+      (compose A a b c p r)
+
+path2_parallel_compose_v2
+  (A : U) (a b c : A)
+  (p q : Path A a b) (r s : Path A b c)
+  (alpha : Path (Path A a b) p q) (beta : Path (Path A b c) r s) :
+    Path (Path A a c) (compose A a b c p r) (compose A a b c q s) =
+  compose
+    (Path A a c)
+    (compose A a b c p r)
+    (compose A a b c p s)
+    (compose A a b c q s)
+    (<i j> whisker_simpler A c b (<j> r @ -j) (<j> s @ -j) (<i j> beta @ i @ -j) a (<k> p @ -k) @ i @ -j)
+    (whisker_simpler A a b p q alpha c s)
+
+path2_parallel_compose_v2'
+  (A : U) (a b c : A)
+  (p q : Path A a b) (r s : Path A b c)
+  (alpha : Path (Path A a b) p q) (beta : Path (Path A b c) r s) :
+    Path (Path A a c) (compose A a b c p r) (compose A a b c q s) =
+    <i j> path2_parallel_compose_v1 A c b a (<j> r @ -j) (<j> s @ -j) (<j> p @ -j) (<j> q @ -j)
+      (<i j> beta @ i @ -j) (<i j> alpha @ i @ -j) @ i @ -j
+
+path2_parallel_compose_v2_is_flipped_v1 : Path ((A : U) (a b c : A)
+  (p q : Path A a b) (r s : Path A b c)
+  (alpha : Path (Path A a b) p q) (beta : Path (Path A b c) r s) ->
+    Path (Path A a c) (compose A a b c p r) (compose A a b c q s))
+    path2_parallel_compose_v2
+    path2_parallel_compose_v2' = <_> path2_parallel_compose_v2
+
+path2_parallel_compose_v2_computation
+  (A : U) (a b c : A)
+  (p : Path A a b) (r : Path A b c) :
+  Path (Path (Path A a c) (compose A a b c p r) (compose A a b c p r))
+    (path2_parallel_compose_v2 A a b c p p r r (<_> p) (<_> r))
+    (<_> compose A a b c p r) =
+    compose_computation
+      (Path A a c)
+      (compose A a b c p r)
+
+path2_parallel_compose_same
+  (A : U) (a b c : A)
+  (p q : Path A a b) (r s : Path A b c)
+  (alpha : Path (Path A a b) p q) (beta : Path (Path A b c) r s) :
+  Path (Path (Path A a c) (compose A a b c p r) (compose A a b c q s))
+    (path2_parallel_compose_v1 A a b c p q r s alpha beta)
+    (path2_parallel_compose_v2 A a b c p q r s alpha beta) =
+  PathInduction (Path A b c)
+    (\(r s : Path A b c) (beta : Path (Path A b c) r s) ->
+    Path (Path (Path A a c) (compose A a b c p r) (compose A a b c q s))
+    (path2_parallel_compose_v1 A a b c p q r s alpha beta)
+    (path2_parallel_compose_v2 A a b c p q r s alpha beta))
+    (\(r : Path A b c) -> PathInduction (Path A a b)
+     (\(p q : Path A a b) (alpha : Path (Path A a b) p q) ->
+    Path (Path (Path A a c) (compose A a b c p r) (compose A a b c q r))
+    (path2_parallel_compose_v1 A a b c p q r r alpha (<_> r))
+    (path2_parallel_compose_v2 A a b c p q r r alpha (<_> r)))
+     (\(p : Path A a b) ->
+       <_> path2_parallel_compose_v1 A a b c p p r r (<_> p) (<_> r)
+     )
+     p q alpha
+    )
+    r s beta
+
+loop2_comp_is_parallel_v1
+  (A : PSet) (p q : Loop2 A) :
+  let l1 : Loop A = (LoopPS A).2 in
+  (PathP
+    (<i> Loop (Loop A, (compose_computation A.1 A.2 @ -i)))
+    (loop_compose (LoopPS A) p q)
+    (path2_parallel_compose_v1 A.1 A.2 A.2 A.2
+      l1 l1 l1 l1
+      p q)) =
+  let l1 : Loop A = (LoopPS A).2 in
+      <i> loop_compose (Loop A, (compose_computation A.1 A.2 @ -i))
+        (whisker_computation_r A.1 A.2 A.2 l1 l1 p @ -i)
+	(<ii j> whisker_computation_r A.1 A.2 A.2 l1 l1 (<i j> q @ i @ -j) @ -i @ ii @ -j)
+
+loop2_comp_is_parallel_v2
+  (A : PSet) (p q : Loop2 A) :
+  let l1 : Loop A = (LoopPS A).2 in
+  (PathP
+    (<i> Loop (Loop A, (compose_computation A.1 A.2 @ -i)))
+    (loop_compose (LoopPS A) q p)
+    (path2_parallel_compose_v2 A.1 A.2 A.2 A.2
+      l1 l1 l1 l1
+      p q)) =
+  let l1 : Loop A = (LoopPS A).2 in
+      <i> loop_compose (Loop A, (compose_computation A.1 A.2 @ -i))
+        (<ii j> whisker_computation_r A.1 A.2 A.2 l1 l1 (<i j> q @ i @ -j) @ -i @ ii @ -j)
+        (whisker_computation_r A.1 A.2 A.2 l1 l1 p @ -i)
+
+loop2_comp_is_parallel_v2'
+  (A : PSet) (p q : Loop2 A) :
+  let l1 : Loop A = (LoopPS A).2 in
+  (PathP
+    (<i> Loop (Loop A, (compose_computation A.1 A.2 @ -i)))
+    (loop_compose (LoopPS A) q p)
+    (path2_parallel_compose_v2 A.1 A.2 A.2 A.2
+      l1 l1 l1 l1
+      p q)) =
+  <z i j> loop2_comp_is_parallel_v1 A (<k l> q @ k @ -l) (<k l> p @ k @ -l) @ z @ i @ -j
+
+loop2_comp_is_parallel_v2_same :
+ Path
+ ((A : PSet) (p q : Loop2 A) ->
+    (PathP
+      (<i> Loop (Loop A, (compose_computation A.1 A.2 @ -i)))
+      (loop_compose (LoopPS A) q p)
+      (path2_parallel_compose_v2 A.1 A.2 A.2 A.2
+        (LoopPS A).2 (LoopPS A).2 (LoopPS A).2 (LoopPS A).2
+        p q)))
+        loop2_comp_is_parallel_v2
+        loop2_comp_is_parallel_v2' = <_> loop2_comp_is_parallel_v2
+
+loop2_comp_comm (A : PSet) (p q : Loop2 A) :
+  Path (Loop2 A)
+    (loop_compose (LoopPS A) p q)
+    (loop_compose (LoopPS A) q p) =
+  <i> comp (<j> Loop (Loop A, (compose_computation A.1 A.2 @ j)))
+    ((path2_parallel_compose_same
+      A.1 A.2 A.2 A.2
+      (<_> A.2) (<_> A.2) (<_> A.2) (<_> A.2)
+      p q) @ i) [
+       (i=0) -> <k> loop2_comp_is_parallel_v1 A p q @ -k
+      , (i=1) -> <k> loop2_comp_is_parallel_v2 A p q @ -k
+      ]
+
+theorem_2_1_6
+  (A : PSet) (p q : Loop2 A)
+  : Path (Loop2 A) (loop_compose (LoopPS A) p q) (loop_compose (LoopPS A) q p) = loop2_comp_comm A p q
+
+lemma_2_2_1 (A B : U) (f : A -> B) (x y : A) (p : Path A x y) : Path B (f x) (f y) = <i> f (p @ i)
+
+lemma_2_2_2 (A B C : U) (x y z : A) (f : A -> B) (g : B -> C) (p : Path A x y) (q : Path A y z) : Unit = tt where
+  p' : Path A y x = <i> p @ -i
+  f_ap_p : Path B (f x) (f y) = <i> f (p @ i)
+  lemma_i :
+    Path (Path B (f x) (f z))
+      (<i> f (compose A x y z p q @ i))
+      (compose B (f x) (f y) (f z) (<i> f (p @ i)) (<i> f (q @ i)))
+    = <i j> comp (<_> B) (f y) [
+      (j=0) -> <k> f (p @ -k)
+     ,(j=1) -> <k> f (q @ k)
+     ,(i=0) -> <k> f (comp (<_> A) y [
+       (j=0) -> <l> (p @ -k \/ -l)
+       ,(j=1) -> <l> (q @ k /\ l)
+       ,(k=0) -> <_> y
+       ])
+    ]
+    
+  lemma_ii : 
+    Path (Path B (f y) (f x))
+    (<i> f_ap_p @ -i)
+    (<i> f (p' @ i))
+    = <_> <i> f (p @ -i)
+
+  fg : A -> C = \(x : A) -> g (f x)
+  lemma_iii : 
+    Path (Path C (g (f x)) (g (f y)))
+    (<i> g (f_ap_p @ i))
+    (<i> fg (p @ i))
+    = <_> <i> g (f (p @ i))
+  id : A -> A = \(x : A) -> x
+  lemma_iii : 
+    Path (Path A x y)
+      (<i> id (p @ i))
+      p
+    = <_> p
+
+lemma_2_3_1_T : U =
+  (A : U) (P : A -> U) (x y : A) (p : Path A x y) -> P x -> P y
+lemma_2_3_1 : lemma_2_3_1_T =
+  \(A : U) (P : A -> U) (x y : A) (p : Path A x y) (px : P x) -> comp (<i> P (p @ i)) px []
+transport' : lemma_2_3_1_T = lemma_2_3_1
+
+lift_path_incorrect_type (A : U) (P : A -> U) (x y : A) (p : Path A x y) (px : P x) :
+  PathP (<i> P (p @ i)) px (transport' A P x y p px) =
+   <i> comp (<k> P (p @ i /\ k)) px
+     [(i=0) -> <k> px
+     ]
+
+lift_path (A : U) (P : A -> U) (x y : A) (p : Path A x y) (px : P x) :
+  Path ((x : A) * P x)
+    (x, px)
+    (y, transport' A P x y p px) =
+    <i> (p @ i, lift_path_incorrect_type A P x y p px @ i)
+
+lift_path' (A : U) (P : A -> U) (x y : A) (p : Path A x y) (px : P x) :
+  Path ((x : A) * P x)
+    (x, px)
+    (y, transport' A P x y p px) =
+  <i> (p @ i,comp (<j> P (p @ (i /\ j))) px [ (i = 0) -> <j> px ])
+
+{- TODO: find a way to refactor this into the above -}
+lift_path' (A : U) (P : A -> U) (x y : A) (p : Path A x y) (px : P x) :
+  Path ((x : A) * P x)
+    (x, px)
+    (y, transport' A P x y p px) =
+  <!0> (p @ !0,
+    comp (<!1> P (p @ !0))
+    (comp (<!1> P (p @ (!0 /\ !1))) px [])
+      [ (!0 = 0) -> <!1> comp (<!2> P x) px [ (!1 = 1) -> <!2> px ]
+      , (!0 = 1) -> <!1> comp (<!0> P (p @ !0)) px [] ]
+      )
+
+apd (A : U) (P : A -> U) (f : (x : A) -> P x) (x y : A) (p : Path A x y) :
+  Path (P y) (transport' A P x y p (f x)) (f y) =
+   <i> comp (<k> P (p @ k)) (f x)
+     [(i=1) -> <k> f (p @ k)]

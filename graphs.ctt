@@ -1,0 +1,143 @@
+module graphs where
+
+data Unit = tt
+
+Path (A : U) (a0 a1 : A) : U = PathP (<i> A) a0 a1
+
+Assoc (A : U) (op : A -> A -> A) : U =
+  (a b c : A) -> Path A (op (op a b) c) (op a (op b c))
+
+Comm (A : U) (op : A -> A -> A) : U =
+  (a b : A) -> Path A (op a b) (op b a)
+
+AddProps (A : U) (add : A -> A -> A) : U =
+  (assoc : Assoc A add)
+  * (comm : Comm A add)
+  * Unit
+
+Identity (A : U) (multiply : A -> A -> A) (eps : A) : U =
+  (left : (a : A) -> Path A (multiply eps a) a)
+  * (right : (a : A) -> Path A (multiply a eps) a)
+  * Unit
+
+Distributes (A : U) (add : A -> A -> A) (multiply : A -> A -> A) : U =
+  (distrib1 : (a b c : A) -> Path A (multiply a (add b c)) (add (multiply a b) (multiply a c)))
+  * (distrib2 : (a b c : A) -> Path A (multiply (add b c) a) (add (multiply b a) (multiply c a)))
+  * Unit
+
+MultProps (A : U) (multiply : A -> A -> A) (eps : A) : U =
+  (assoc : Assoc A multiply) * Identity A multiply eps
+
+Decomposition (A : U) (add : A -> A -> A) (multiply : A -> A -> A) : U =
+  (p q r : A) ->
+  Path A
+    (multiply (multiply p q) r)
+    (add (add (multiply p q) (multiply p r)) (multiply q r))
+
+GraphOps (A : U) : U =
+  (eps : A)
+  * (add : A -> A -> A)
+  * (multiply : A -> A -> A)
+  * Unit
+
+epsGO (A : U) (Ops : GraphOps A) : A = Ops.1
+addGO (A : U) (Ops : GraphOps A) : A -> A -> A = Ops.2.1
+multGO (A : U) (Ops : GraphOps A) : A -> A -> A = Ops.2.2.1
+
+GraphProps (A : U) (Ops : GraphOps A) : U =
+  let eps : A = epsGO A Ops in
+  let add : A -> A -> A = addGO A Ops in
+  let multiply : A -> A -> A = multGO A Ops in
+  (addProps : AddProps A add)
+  * (multProps : MultProps A multiply eps)
+  * (distributes : Distributes A add multiply)
+  * (decomposition : Decomposition A add multiply)
+  * Unit
+
+isGraph (A : U) : U =
+  (ops : GraphOps A)
+  * GraphProps A ops
+
+Graph : U = (A : U) * isGraph A
+
+Carrier (G : Graph) : U = G.1
+
+opsG (G : Graph) : GraphOps (Carrier G) = G.2.1
+epsG (G : Graph) : Carrier G = (opsG G).1
+addG (G : Graph) : Carrier G -> Carrier G -> Carrier G = (opsG G).2.1
+multG (G : Graph) : Carrier G -> Carrier G -> Carrier G = (opsG G).2.2.1
+
+propsG (G : Graph) : GraphProps (Carrier G) (opsG G) = G.2.2
+
+addComm (G : Graph) : (x y : Carrier G) -> Path (Carrier G) (addG G x y) (addG G y x)
+  = (propsG G).1.2.1
+
+addAssoc (G : Graph) : (x y z : Carrier G)
+  -> Path (Carrier G) (addG G (addG G x y) z) (addG G x (addG G y z))
+  = (propsG G).1.1
+
+rightIdentity (G : Graph) : (x : Carrier G) -> Path (Carrier G) (multG G x (epsG G)) x
+  = (propsG G).2.1.2.2.1
+
+decomposition (G : Graph) : Decomposition (Carrier G) (addG G) (multG G)
+  = (propsG G).2.2.2.1
+
+preIdempotence (G : Graph) (x : Carrier G) : Path (Carrier G) (addG G (addG G x x) (epsG G)) x =
+  let A : U = Carrier G in
+  let add : A -> A -> A = addG G in
+  let mult : A -> A -> A = multG G in
+  let eps : Carrier G = epsG G in
+  let x1 : A = add (add x x) eps in
+  let x2 : A = add (add (mult x eps) (mult x eps)) (mult eps eps) in
+  let x3 : A = mult (mult x eps) eps in
+  -- the proofs for [p] and for [q] are nicer than in Agda
+  let p : Path A x2 x1 =
+       <i> add (add (rightIdentity G x @ i) (rightIdentity G x @ i)) (rightIdentity G eps @ i)
+  in
+  let q : Path A x3 x = <j> (rightIdentity G (rightIdentity G x @ j) @ j) in
+  <i> comp (<j> A) (decomposition G x eps eps @ -i)
+   [ (i=0) -> p
+   , (i=1) -> q
+   ]
+
+trans (A : U) (a b c : A) (p : Path A a b) (q : Path A b c) : Path A a c =
+  <i> comp (<j> A) (p @ i)
+   [ (i=0) -> <j> a
+   , (i=1) -> q
+   ]
+
+plusIdentity (G : Graph) (x : Carrier G) : Path (Carrier G) (addG G x (epsG G)) x =
+  let A : U = Carrier G in
+  let add : A -> A -> A = addG G in
+  let mult : A -> A -> A = multG G in
+  let eps : Carrier G = epsG G in
+  let x0 : A = add x eps in
+  let x1 : A = add (add (add x eps) (add x eps)) eps in
+  let x2 : A = add (add (add (add x eps) x) eps) eps in
+  let xm2 : A = add (add x x) (add (add eps eps) eps) in
+  let initial : Path A (add x eps) x1 = <i> preIdempotence G (add x eps) @ -i in
+  let
+   -- this didn't work out so well
+   boring : Path A x1 xm2 =
+    <i> comp (<j> A) (add (addAssoc G (add x x) eps eps @ i) eps) [
+       (i=0) -> <j> add (comp (<_> A) (addAssoc G (add x eps) x eps @ j)
+         [ (j=1) -> <_> (add (add x eps) (add x eps))
+	 , (j=0) -> <k> add (
+	    comp (<_> A) (add x (addComm G eps x @ k))
+	      [(k=0) -> <l> addAssoc G x eps x @ -l
+	      ,(k=1) -> <l> addAssoc G x x eps @ -l]) eps
+	 ]
+       ) eps
+      ,(i=1) -> addAssoc G (add x x) (add eps eps) eps
+      ]
+  in
+  let
+   final : Path A xm2 x =
+    <i> comp (<_> A) (add (add x x) eps)
+     [(i=0) -> <j> add (add x x) (preIdempotence G eps @ -j)
+     ,(i=1) -> preIdempotence G x
+     ]
+  in
+  <i> comp (<j> A) (boring @ i)
+    [(i=0) -> <j> initial @ -j
+    ,(i=1) -> final]
