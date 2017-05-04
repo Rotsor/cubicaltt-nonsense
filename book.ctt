@@ -627,6 +627,12 @@ compose_identity_r_wtf (A : U) : (x y : A) (p : Path A x y) -> Path (Path A x y)
      , (j = 1) -> <k> p @ k
      ]
 
+compose_identity_r_cubical (A : U) : (x y : A) (p : Path A x y) -> Path (Path A x y) (compose A x y y p (<_> y)) p =
+    PathInduction
+      A
+      (\(x y : A) (p : Path A x y) -> Path (Path A x y) (path_compose A x y y p (<_> y)) p)
+      (compose_computation A)
+
 lemma_2_1_4 (A : U) (x y z w : A) (p : Path A x y) (q : Path A y z) (r : Path A z w) : Unit = tt where
   property_i1 (x y : A) (p : Path A x y) : Path (Path A x y) p (path_compose A x x y (<_> x) p) =
     <i> IndiscernibilityOfIdenticalsComputation
@@ -1159,6 +1165,10 @@ lemma_2_3_1 : lemma_2_3_1_T =
   \(A : U) (P : A -> U) (x y : A) (p : Path A x y) (px : P x) -> comp (<i> P (p @ i)) px []
 transport' : lemma_2_3_1_T = lemma_2_3_1
 
+transport'_is_transport (A : U) (P : A -> U) (x y : A) (p : Path A x y) (v : P x)
+  : Path (P y) (transport' A P x y p v) (transport (<i> P (p @ i)) v)
+  = <_> transport (<i> P (p @ i)) v
+
 lift_path_incorrect_type (A : U) (P : A -> U) (x y : A) (p : Path A x y) (px : P x) :
   PathP (<i> P (p @ i)) px (transport' A P x y p px) =
    <i> comp (<k> P (p @ i /\ k)) px
@@ -1189,7 +1199,176 @@ lift_path' (A : U) (P : A -> U) (x y : A) (p : Path A x y) (px : P x) :
       , (!0 = 1) -> <!1> comp (<!0> P (p @ !0)) px [] ]
       )
 
+ap (A B : U) (f : A -> B) (x y : A) (p : Path A x y) :
+  Path B (f x) (f y) =
+   <i> f (p @ i)
+
 apd (A : U) (P : A -> U) (f : (x : A) -> P x) (x y : A) (p : Path A x y) :
-  Path (P y) (transport' A P x y p (f x)) (f y) =
+  Path (P y) (transport (<i> P (p @ i)) (f x)) (f y) =
    <i> comp (<k> P (p @ k)) (f x)
      [(i=1) -> <k> f (p @ k)]
+
+apd_specialized (A : U) (B : U) (f : A -> B) (x y : A) (p : Path A x y) :
+  Path B (transport (<i> B) (f x)) (f y) =
+   <i> comp (<k> B) (f x)
+     [(i=1) -> <k> f (p @ k)]
+
+another_side (A : U) (B : U) (f : A -> B) (x y : A) (p : Path A x y) :
+  Path B (transport (<i> B) (f x)) (f y) =
+   <i> comp (<k> B) (f x)
+     [(i=1) -> <k> f (p @ k)
+     ,(i=0) ->
+       <k> comp (<_> B) (f x) [
+        (k=0) -> <_> f x
+       ]
+     ]
+
+
+apd' (A : U) (P : A -> U) (f : (x : A) -> P x) (x y : A) (p : Path A x y) :
+  Path (P y) (transport (<i> P (p @ i)) (f x)) (f y) =
+   <i> comp (<k> P (p @ k \/ i)) (f (p @ i))
+     [(i=1) -> <k> f y]
+
+
+-- lemma_2_3_5
+transport_const (A : U) (B : U) (b : B) (x y : A) (p : Path A x y) :
+  Path B (transport' A (\(_ : A) -> B) x y p b) b
+  = <i> comp (<_> B) b [
+   (i=1) -> <_> b
+  ]
+
+transport_const' (A : U) (B : U) (b : B) :
+  Path B (comp (<_> B) b []) b
+  = <i> comp (<_> B) b [
+   (i=1) -> <_> b
+  ]
+
+lemma_2_3_6  (A : U) (B : U) (b : B) (x y : A) (p : Path A x y) (f : A -> B) :
+  Path B (f x) (f y) -> Path B (transport' A (\(_ : A) -> B) x y p (f x)) (f y)
+  = \(r : Path B (f x) (f y)) -> <i> comp (<_> B) (r @ i) [
+    (i=1) -> <_> f y
+  ]
+
+lemma_2_3_7  (A : U) (B : U) (b : B) (x y : A) (p : Path A x y) (f : A -> B) :
+  Path B (transport' A (\(_ : A) -> B) x y p (f x)) (f y) -> Path B (f x) (f y)
+  = \(r : Path B (transport' A (\(_ : A) -> B) x y p (f x)) (f y)) ->
+    transport (<i>
+      Path B (transport_const A B (f x) x y p @ i) (f y)) r
+
+lemma_2_3_7'_manual  (A : U) (B : U) (b : B) (x y : A) (p : Path A x y) (f : A -> B) :
+  Path B (transport' A (\(_ : A) -> B) x y p (f x)) (f y) -> Path B (f x) (f y)
+  = \(r : Path B (transport' A (\(_ : A) -> B) x y p (f x)) (f y)) ->
+    <i> comp (<k>B) (r @ i) [
+      (i=0) -> <k> (
+        comp (<_> B) (f x)
+	[ (k=1) -> <_> f x ])
+      ,(i=1) -> <_> f y]
+
+lemma_2_3_7'_another  (A : U) (B : U) (b : B) (x y : A) (p : Path A x y) (f : A -> B) :
+  Path B (transport' A (\(_ : A) -> B) x y p (f x)) (f y) -> Path B (f x) (f y)
+  = \(r : Path B (transport' A (\(_ : A) -> B) x y p (f x)) (f y)) ->
+    compose B (f x) (transport' A (\(_ : A) -> B) x y p (f x)) (f y)
+     (<i> transport_const A B (f x) x y p @ -i)
+     r
+
+lemma_2_3_7'  (A : U) (B : U) (b : B) (x y : A) (p : Path A x y) (f : A -> B)
+  (r : Path B (transport' A (\(_ : A) -> B) x y p (f x)) (f y)) : Path B (f x) (f y)
+  =
+  <i> comp (<k> B) (transport' A (\(_ : A) -> B) x y p (f x)) [
+    (i = 0) ->
+      <k> comp (<_> B) (f x) [
+        (k = 1) -> <_> f x
+	]
+  , (i = 1) -> <k> r @ k ]
+
+
+same : Path ((A : U) (B : U) (b : B) (x y : A) (p : Path A x y) (f : A -> B)
+  (r : Path B (transport' A (\(_ : A) -> B) x y p (f x)) (f y)) -> Path B (f x) (f y))
+  lemma_2_3_7' lemma_2_3_7'_another = <_> lemma_2_3_7'
+
+lemma_2_3_8' (A B : U) (f : A -> B) (x y : A) (p : Path A x y) :
+  Path (Path B (transport (<_> B) (f x)) (f y))
+    (compose B (transport (<_> B) (f x)) (f x) (f y)
+      (transport_const' A B (f x))
+      (<i> f (p @ i)))
+    (apd_specialized A B f x y p) =
+    PathInduction
+      A
+      (\(x y : A) (p : Path A x y) ->
+      Path (Path B (transport (<_> B) (f x)) (f y))
+    (compose B (transport (<_> B) (f x)) (f x) (f y)
+      (transport_const' A B (f x))
+      (<i> f (p @ i)))
+    (apd_specialized A B f x y p))
+    (\(x : A) ->
+      let
+       res : Path (Path B (transport (<_> B) (f x)) (f x))
+        (compose B (transport (<_> B) (f x)) (f x) (f x)
+          (transport_const' A B (f x))
+          (<_> f x))
+        (apd_specialized A B f x x (<_> x)) =
+	  comp (<i> Path (Path B (transport (<_> B) (f x)) (f x))
+         (compose_identity_r_cubical B (transport (<_> B) (f x)) (f x) (transport_const' A B (f x)) @ -i)
+        (apd_specialized A B f x x (<_> x))) (<_> (<!2> comp (<!3> B) (f x) [ (!2 = 1) -> <!3> f x ])) []
+      in
+      res
+    )
+    x y p
+
+lemma_2_3_8 (A B : U) (f : A -> B) (x y : A) (p : Path A x y) :
+  Path (Path B (transport (<_> B) (f x)) (f y))
+    (compose B (transport (<_> B) (f x)) (f x) (f y)
+      (transport_const A B (f x) x y p)
+      (ap A B f x y p))
+    (apd A (\(_ : A) -> B) f x y p) =
+    <i j> comp (<!3> B)
+      (comp (<!3> B) (comp (<!3> B) (f x) [(j = 1) -> <!3> f x ]) [
+        (i = 0) -> <!3> comp (<!4> B) (comp (<!4> B) (comp (<!0> B) (f x) []) [ (j = 0) -> <!4> comp (<!0> B) (f x) [], (j = 1) -> <!4> comp (<!0> B) (f x) [], (!3 = 0) -> <!4> comp (<!0> B) (f x) [] ]) [ (j = 0) -> <!4> comp (<!0> B) (f x) [], (j = 1) -> <!4> comp (<!5> B) (f x) [ (!4 = 1) -> <!5> f x ], (!3 = 0) -> <!4> comp (<!5> B) (f x) [ (j = 1)(!4 = 1) -> <!5> f x ], (!3 = 1) -> <!4> comp (<!5> B) (comp (<!5> B) (f x) [ (!4 = 1) -> <!5> f x ]) [ (j = 0) -> <!5> comp (<!6> B) (f x) [ (!4 = 1)(!5 = 0) -> <!6> f x ], (j = 1) -> <!5> comp (<!5> B) (f x) [ (!4 = 1) -> <!5> f x ] ] ]
+      , (i = 1) -> <!3> comp (<!3> B) (f x) [ (j = 1) -> <!3> f x ]
+      , (j = 0) -> <!3> comp (<!0> B) (f x) []
+      , (j = 1) -> <!3> f x ])
+      [ (i = 0) -> <!3> comp (<!4> B) (f x) [
+        (j = 0) -> <!4> comp (<!5> B) (f x) [ (!4 = 0) -> <!5> f x ], (j = 1) -> <!4> f (p @ (!3 /\ !4)) ], (i = 1) -> <!3> comp (<!4> B) (f x) [ (j = 1) -> <!4> f (p @ (!3 /\ !4)) ], (j = 0) -> <!3> comp (<!0> B) (f x) [], (j = 1) -> <!3> f (p @ !3) ]
+
+-- sigh... I fail. had to resort to path induction :(
+{-
+  let
+   side : Path B (f x) (transport (<_> B) (f x)) =
+    <i> comp (<_> B) (f x) [
+      (i=0) -> <_> f x
+    ]
+   side_v2 : Path B (f x) (transport (<_> B) (f x)) =
+    <i> transport_const A B (f x) x y p @ -i
+   foo : Unit = tt
+  in
+  let
+   stuff :
+    Square
+      B
+      (transport (<_> B) (f x))
+      (transport (<_> B) (f x))
+      (f y)
+      (f y)
+      (<_> (transport (<_> B) (f x)))
+      (<_> f y)
+      (<j> comp (<_> B) (f x) [
+       (j=0) -> <k> (transport_const A B (f x) x y p) @ -k
+       ,(j=1) -> <k> (ap A B f x y p) @ k
+       ])
+      (<j> comp (<_> B) (f x)
+        [(j=1) -> <k> (ap A B f x y p) @ k
+	]
+      )
+      -- (apd A (\(_ : A) -> B) f x y p)
+    =
+    <i j> comp (<_> B) (f x) [
+     (j=1) -> <k> f (p @ k)
+      -- k=0 must be f x
+      -- k=1 must be compose blah blah
+      
+    ,(j=0)(i=0) -> <k> side @ k
+    ]
+   foo2 : Unit = tt
+  in
+  stuff
+-}
